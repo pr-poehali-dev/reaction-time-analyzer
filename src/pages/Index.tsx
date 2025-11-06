@@ -70,7 +70,7 @@ const Index = () => {
     loadFromLocalStorage('reaction-test-displayTime', 500)
   );
   const [testKey, setTestKey] = useState(() => 
-    loadFromLocalStorage('reaction-test-testKey', 'Space')
+    loadFromLocalStorage('reaction-test-testKey', 'Enter')
   );
   const [repetitions, setRepetitions] = useState(() => 
     loadFromLocalStorage('reaction-test-repetitions', 3)
@@ -98,6 +98,25 @@ const Index = () => {
     return sequence.sort(() => Math.random() - 0.5);
   }, [images, repetitions]);
 
+  const runNextTrial = useCallback((sequence: TestImage[], index: number) => {
+    if (index >= sequence.length) {
+      completeTest();
+      return;
+    }
+
+    setCurrentImageIndex(index);
+    setTestPhase('showing');
+    
+    setTimeout(() => {
+      setTestPhase('flash');
+      setTestStartTime(Date.now());
+      
+      setTimeout(() => {
+        setTestPhase('ready');
+      }, 100);
+    }, displayTime);
+  }, [displayTime]);
+
   const startTest = () => {
     if (images.length === 0) {
       toast.error('Добавьте хотя бы одно изображение');
@@ -117,29 +136,14 @@ const Index = () => {
     }, 1000);
   };
 
-  const runNextTrial = (sequence: TestImage[], index: number) => {
-    if (index >= sequence.length) {
-      completeTest();
-      return;
-    }
-
-    setCurrentImageIndex(index);
-    setTestPhase('showing');
-    
-    setTimeout(() => {
-      setTestPhase('flash');
-      setTestStartTime(Date.now());
-      
-      setTimeout(() => {
-        setTestPhase('ready');
-      }, 100);
-    }, displayTime);
-  };
-
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
     if (!isTestRunning || testPhase !== 'ready') return;
     
-    if (e.code === testKey || e.key === ' ' && testKey === 'Space') {
+    const isTargetKey = e.code === testKey || 
+                        (e.key === ' ' && testKey === 'Space') || 
+                        (e.key === 'Enter' && testKey === 'Enter');
+    
+    if (isTargetKey) {
       const reactionTime = Date.now() - testStartTime;
       const currentImage = testSequence[currentImageIndex];
       
@@ -167,7 +171,7 @@ const Index = () => {
         runNextTrial(testSequence, currentImageIndex + 1);
       }, 800);
     }
-  }, [isTestRunning, testPhase, testStartTime, currentImageIndex, testSequence, testKey]);
+  }, [isTestRunning, testPhase, testStartTime, currentImageIndex, testSequence, testKey, runNextTrial]);
 
   const completeTest = () => {
     setIsTestRunning(false);
