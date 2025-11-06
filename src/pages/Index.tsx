@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
+import { saveImageToDB, loadImagesFromDB, deleteImageFromDB } from '@/lib/db';
 
 interface TestImage {
   id: string;
@@ -59,9 +60,8 @@ const saveToLocalStorage = (key: string, value: unknown) => {
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('settings');
-  const [images, setImages] = useState<TestImage[]>(() => 
-    loadFromLocalStorage('reaction-test-images', SAMPLE_IMAGES)
-  );
+  const [images, setImages] = useState<TestImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(true);
   const [sessions, setSessions] = useState<TestSession[]>(() => 
     loadFromLocalStorage('reaction-test-sessions', [])
   );
@@ -190,8 +190,25 @@ const Index = () => {
   };
 
   useEffect(() => {
-    saveToLocalStorage('reaction-test-images', images);
-  }, [images]);
+    const loadImages = async () => {
+      const loadedImages = await loadImagesFromDB();
+      if (loadedImages.length > 0) {
+        setImages(loadedImages);
+      } else {
+        setImages(SAMPLE_IMAGES);
+      }
+      setIsLoadingImages(false);
+    };
+    loadImages();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoadingImages) {
+      images.forEach(img => {
+        saveImageToDB(img.id, img.url, img.name, img.reactions);
+      });
+    }
+  }, [images, isLoadingImages]);
 
   useEffect(() => {
     saveToLocalStorage('reaction-test-sessions', sessions);
@@ -220,13 +237,14 @@ const Index = () => {
     
     Array.from(files).forEach(file => {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const newImage: TestImage = {
           id: `${Date.now()}-${Math.random()}`,
           url: event.target?.result as string,
           name: file.name,
           reactions: []
         };
+        await saveImageToDB(newImage.id, newImage.url, newImage.name, newImage.reactions);
         setImages(prev => [...prev, newImage]);
       };
       reader.readAsDataURL(file);
@@ -235,7 +253,8 @@ const Index = () => {
     toast.success('Изображения загружены');
   };
 
-  const deleteImage = (id: string) => {
+  const deleteImage = async (id: string) => {
+    await deleteImageFromDB(id);
     setImages(prev => prev.filter(img => img.id !== id));
     toast.success('Изображение удалено');
   };
