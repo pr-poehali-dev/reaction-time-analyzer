@@ -82,6 +82,7 @@ const Index = () => {
   const [currentRepetition, setCurrentRepetition] = useState(0);
   const [testStartTime, setTestStartTime] = useState<number>(0);
   const [testSequence, setTestSequence] = useState<TestImage[]>([]);
+  const [currentTestResults, setCurrentTestResults] = useState<{[imageId: string]: number[]}>({});
 
   const calculateAverageReaction = (reactions: number[]) => {
     if (reactions.length === 0) return 0;
@@ -123,6 +124,7 @@ const Index = () => {
       return;
     }
     
+    setCurrentTestResults({});
     const sequence = generateTestSequence();
     setTestSequence(sequence);
     setCurrentImageIndex(0);
@@ -158,6 +160,11 @@ const Index = () => {
       
       setSessions(prev => [...prev, session]);
       
+      setCurrentTestResults(prev => ({
+        ...prev,
+        [currentImage.id]: [...(prev[currentImage.id] || []), reactionTime]
+      }));
+      
       setImages(prev => prev.map(img => {
         if (img.id === currentImage.id) {
           return { ...img, reactions: [...img.reactions, reactionTime] };
@@ -182,10 +189,10 @@ const Index = () => {
 
   const getRankedImages = (fastest: boolean) => {
     const imagesWithAvg = images
-      .filter(img => img.reactions.length > 0)
+      .filter(img => currentTestResults[img.id]?.length > 0)
       .map(img => ({
         ...img,
-        averageReaction: calculateAverageReaction(img.reactions)
+        averageReaction: calculateAverageReaction(currentTestResults[img.id] || [])
       }));
     
     return fastest 
@@ -261,6 +268,12 @@ const Index = () => {
     await deleteImageFromDB(id);
     setImages(prev => prev.filter(img => img.id !== id));
     toast.success('Изображение удалено');
+  };
+
+  const resetResults = () => {
+    setCurrentTestResults({});
+    setSessions([]);
+    toast.success('Результаты сброшены');
   };
 
   const progress = testSequence.length > 0 
@@ -480,17 +493,28 @@ const Index = () => {
             <div className="grid gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon name="TrendingUp" size={24} />
-                    Статистика реакций
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon name="TrendingUp" size={24} />
+                      Статистика текущего теста
+                    </CardTitle>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={resetResults}
+                      disabled={Object.keys(currentTestResults).length === 0}
+                    >
+                      <Icon name="RotateCcw" size={16} className="mr-2" />
+                      Сбросить результаты
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-secondary rounded-lg p-6 text-center">
                       <Icon name="Image" size={32} className="mx-auto mb-2 text-primary" />
                       <p className="text-3xl font-bold text-primary">
-                        {images.filter(img => img.reactions.length > 0).length}
+                        {Object.keys(currentTestResults).length}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">Протестировано изображений</p>
                     </div>
@@ -502,8 +526,11 @@ const Index = () => {
                     <div className="bg-secondary rounded-lg p-6 text-center">
                       <Icon name="Clock" size={32} className="mx-auto mb-2 text-primary" />
                       <p className="text-3xl font-bold text-primary">
-                        {sessions.length > 0 
-                          ? Math.round(sessions.reduce((sum, s) => sum + s.reactionTime, 0) / sessions.length)
+                        {Object.keys(currentTestResults).length > 0
+                          ? Math.round(
+                              Object.values(currentTestResults).flat().reduce((sum, time) => sum + time, 0) /
+                              Object.values(currentTestResults).flat().length
+                            )
                           : 0}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">Среднее время (мс)</p>
@@ -529,7 +556,7 @@ const Index = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{img.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {img.reactions.length} измерений
+                              {currentTestResults[img.id]?.length || 0} измерений
                             </p>
                           </div>
                           <div className="text-right">
@@ -557,7 +584,7 @@ const Index = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{img.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {img.reactions.length} измерений
+                              {currentTestResults[img.id]?.length || 0} измерений
                             </p>
                           </div>
                           <div className="text-right">
