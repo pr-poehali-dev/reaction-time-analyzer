@@ -33,14 +33,48 @@ const SAMPLE_IMAGES: TestImage[] = [
   { id: '3', url: '/placeholder.svg', name: 'Изображение 3', reactions: [] },
 ];
 
+const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (key === 'reaction-test-sessions' && Array.isArray(parsed)) {
+        return parsed.map(s => ({ ...s, timestamp: new Date(s.timestamp) })) as T;
+      }
+      return parsed;
+    }
+  } catch (error) {
+    console.error(`Error loading ${key}:`, error);
+  }
+  return defaultValue;
+};
+
+const saveToLocalStorage = (key: string, value: unknown) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error saving ${key}:`, error);
+  }
+};
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState('settings');
-  const [images, setImages] = useState<TestImage[]>(SAMPLE_IMAGES);
-  const [sessions, setSessions] = useState<TestSession[]>([]);
+  const [images, setImages] = useState<TestImage[]>(() => 
+    loadFromLocalStorage('reaction-test-images', SAMPLE_IMAGES)
+  );
+  const [sessions, setSessions] = useState<TestSession[]>(() => 
+    loadFromLocalStorage('reaction-test-sessions', [])
+  );
   
-  const [displayTime, setDisplayTime] = useState(500);
-  const [testKey, setTestKey] = useState('Space');
-  const [repetitions, setRepetitions] = useState(3);
+  const [displayTime, setDisplayTime] = useState(() => 
+    loadFromLocalStorage('reaction-test-displayTime', 500)
+  );
+  const [testKey, setTestKey] = useState(() => 
+    loadFromLocalStorage('reaction-test-testKey', 'Space')
+  );
+  const [repetitions, setRepetitions] = useState(() => 
+    loadFromLocalStorage('reaction-test-repetitions', 3)
+  );
   
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [testPhase, setTestPhase] = useState<'waiting' | 'showing' | 'flash' | 'ready'>('waiting');
@@ -154,6 +188,26 @@ const Index = () => {
       ? imagesWithAvg.sort((a, b) => a.averageReaction - b.averageReaction)
       : imagesWithAvg.sort((a, b) => b.averageReaction - a.averageReaction);
   };
+
+  useEffect(() => {
+    saveToLocalStorage('reaction-test-images', images);
+  }, [images]);
+
+  useEffect(() => {
+    saveToLocalStorage('reaction-test-sessions', sessions);
+  }, [sessions]);
+
+  useEffect(() => {
+    saveToLocalStorage('reaction-test-displayTime', displayTime);
+  }, [displayTime]);
+
+  useEffect(() => {
+    saveToLocalStorage('reaction-test-testKey', testKey);
+  }, [testKey]);
+
+  useEffect(() => {
+    saveToLocalStorage('reaction-test-repetitions', repetitions);
+  }, [repetitions]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyPress);
